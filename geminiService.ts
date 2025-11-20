@@ -1,61 +1,49 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
-import { AnalysisResult } from "../types";
-
-const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY environment variable is missing");
-  }
-  return new GoogleGenAI({ apiKey });
-};
+// src/services/geminiService.ts
+import { AnalysisResult } from '../types';
 
 export const analyzeImage = async (base64Image: string): Promise<AnalysisResult[]> => {
-  const ai = getAiClient();
-  
-  // Clean base64 string if it contains metadata header
-  const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+  // 移除 Data URL 前缀
+  const base64Data = base64Image.split(',')[1];
+  const mimeType = base64Image.split(';')[0].split(':')[1];
+
+  const prompt = `
+    分析这张图片中的所有人物。
+    对于每个人物，请提供：
+    1. 性别 (Gender) - 使用中文 (男/女)
+    2. 预估年龄 (Age) - 使用数字范围 (例如 25-30岁)
+    3. 简短的外貌描述 (Description) - 使用中文，不超过10个字 (例如：戴眼镜，黑色短发)
+    
+    请严格以 JSON 数组格式返回结果，不要包含 markdown 格式化符号。
+  `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: cleanBase64
-            }
-          },
-          {
-            text: "请分析这张图片中的所有人物。请按照从左到右的顺序，逐一分析每个人的性别（gender）和准确的数字年龄（age）。同时提供一个简短的特征描述（description，例如'左边的男士'，'穿红衣的小女孩'）以便区分。输出中文。请直接返回JSON数组格式。"
-          }
-        ]
+    // 核心修改：请求你自己的后端 API，而不是直接请求 googleapis.com
+    // 这样你的手机只负责连 Vercel，Vercel 负责连 Google
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              gender: { type: Type.STRING },
-              age: { type: Type.STRING },
-              description: { type: Type.STRING },
-            },
-            required: ["gender", "age", "description"]
-          }
-        }
-      }
+      body: JSON.stringify({
+        prompt,
+        mimeType,
+        base64Data
+      })
     });
 
-    const text = response.text;
-    if (!text) throw new Error("No response from AI");
+    if (!response.ok) {
+      throw new Error("Analysis request failed");
+    }
 
-    return JSON.parse(text) as AnalysisResult[];
+    const data = await response.json();
+    
+    // 解析逻辑保持不变
+    const textResponse = data.candidates[0].content.parts[0].text;
+    const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanJson) as AnalysisResult[];
 
-  } catch (error) {
-    console.error("Gemini Analysis Error:", error);
-    throw error;
+  } catch (e) {
+    console.error("Parsing Error:", e);
+    throw e;
   }
 };
