@@ -1,0 +1,7 @@
+{
+  "name": "FaceInsight",
+  "description": "智能人像性别与年龄检测应用",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
