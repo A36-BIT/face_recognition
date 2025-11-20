@@ -1,9 +1,9 @@
 
 import React, { useState, useRef } from 'react';
 import { Camera, Image as ImageIcon, ScanFace, Loader2, AlertCircle, Sparkles, User, Calendar, Users } from 'lucide-react';
-import { analyzeImage } from './services/geminiService';
+import { analyzeImage } from './geminiService';
 import { AnalysisResult, AnalysisState } from './types';
-import { ScannerEffect } from './components/ScannerEffect';
+import { ScannerEffect } from './ScannerEffect';
 
 const App: React.FC = () => {
   const [image, setImage] = useState<string | null>(null);
